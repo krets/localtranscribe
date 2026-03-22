@@ -123,18 +123,18 @@
       gap: 4px;
     }
     .history-text-preview {
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
+      white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      font-size: 0.95em;
+      font-size: 0.9em;
       line-height: 1.3;
+      opacity: 0.8;
     }
     .history-date { 
       color: var(--secondary); 
       font-size: 0.8em;
-      text-align: right;
+      text-align: left;
+      font-weight: bold;
     }
     .history-details { display: none; padding-top: 8px; }
     .history-item.active .history-summary { display: none; }

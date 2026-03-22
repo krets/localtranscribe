@@ -160,8 +160,8 @@ async function renderHistory(expandId = null) {
     const summary = document.createElement('div');
     summary.className = 'history-summary';
     summary.innerHTML = `
-      <div class="history-text-preview">${item.text}</div>
       <div class="history-date">${dateStr}</div>
+      <div class="history-text-preview">${item.text}</div>
     `;
     
     const details = document.createElement('div');
@@ -380,9 +380,21 @@ async function startTranscription() {
 }
 
 async function checkSharedFile() {
-  if ('serviceWorker' in navigator) {
+  const urlParams = new URLSearchParams(window.location.search);
+  const isShareFromUrl = urlParams.has('share');
+  if (isShareFromUrl) {
+    // Clear URL param without reload
+    window.history.replaceState({}, document.title, "/");
+  }
+
+  if (!('serviceWorker' in navigator)) return;
+
+  // Poll for the shared file in the Cache Storage (up to 10 attempts over 2 seconds)
+  let attempts = 0;
+  while (attempts < 10) {
     const cache = await caches.open('share-target-cache');
     const response = await cache.match('/shared-audio');
+    
     if (response) {
       els.statusText.textContent = "Detecting shared file...";
       const file = await response.blob();
@@ -392,10 +404,16 @@ async function checkSharedFile() {
       
       await cache.delete('/shared-audio');
       
+      console.log('Processing shared file:', filename);
       if (!db) await initDB();
       // Share from app: start transcription immediately
       await handleFileSelect(sharedFile, true);
+      return;
     }
+    
+    // If we have the share param, we're very likely to get a file soon, so we wait
+    await new Promise(r => setTimeout(r, 200));
+    attempts++;
   }
 }
 

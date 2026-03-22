@@ -48,7 +48,7 @@ self.addEventListener('fetch', (event) => {
       } catch (err) {
         console.error('Share target error:', err);
       }
-      return Response.redirect('/', 303);
+      return Response.redirect('/?share=1', 303);
     })());
     return;
   }
