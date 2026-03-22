@@ -10,6 +10,7 @@ let isTranscribing = false;
 const PREFS = {
   selectedModel: 'Xenova/whisper-tiny.en',
   historyEnabled: true,
+  theme: 'system',
 };
 
 const MODELS = [
@@ -35,6 +36,7 @@ const els = {
   statAudioLen: document.getElementById('stat-audio-len'),
   statTranscribeTime: document.getElementById('stat-transcribe-time'),
   historyToggle: document.getElementById('history-toggle'),
+  themeSelect: document.getElementById('theme-select'),
   historyList: document.getElementById('history-list'),
   modelsList: document.getElementById('models-list'),
 };
@@ -43,6 +45,7 @@ const els = {
 
 async function init() {
   loadPrefs();
+  applyTheme();
   setupEventListeners();
   updateModelsUI();
   await initDB();
@@ -57,10 +60,20 @@ function loadPrefs() {
   const saved = localStorage.getItem('stfu_prefs');
   if (saved) Object.assign(PREFS, JSON.parse(saved));
   els.historyToggle.checked = PREFS.historyEnabled;
+  els.themeSelect.value = PREFS.theme || 'system';
 }
 
 function savePrefs() {
   localStorage.setItem('stfu_prefs', JSON.stringify(PREFS));
+}
+
+function applyTheme() {
+  const theme = PREFS.theme || 'system';
+  if (theme === 'system') {
+    document.documentElement.removeAttribute('data-theme');
+  } else {
+    document.documentElement.setAttribute('data-theme', theme);
+  }
 }
 
 function setupEventListeners() {
@@ -79,6 +92,12 @@ function setupEventListeners() {
   els.historyToggle.onchange = (e) => {
     PREFS.historyEnabled = e.target.checked;
     savePrefs();
+  };
+
+  els.themeSelect.onchange = (e) => {
+    PREFS.theme = e.target.value;
+    savePrefs();
+    applyTheme();
   };
 
   // Tabs

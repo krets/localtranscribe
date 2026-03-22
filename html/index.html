@@ -18,7 +18,7 @@
       --danger: #dc3545;
     }
     @media (prefers-color-scheme: dark) {
-      :root {
+      :root:not([data-theme="light"]) {
         --bg: #1a1a1a;
         --fg: #f8f9fa;
         --primary: #375a7f;
@@ -28,6 +28,26 @@
         --success: #218838;
         --danger: #c82333;
       }
+    }
+    [data-theme="dark"] {
+      --bg: #1a1a1a;
+      --fg: #f8f9fa;
+      --primary: #375a7f;
+      --secondary: #aaaaaa;
+      --border: #333333;
+      --bg-alt: #222222;
+      --success: #218838;
+      --danger: #c82333;
+    }
+    [data-theme="light"] {
+      --bg: #ffffff;
+      --fg: #222222;
+      --primary: #007bff;
+      --secondary: #6c757d;
+      --border: #dee2e6;
+      --bg-alt: #f8f9fa;
+      --success: #28a745;
+      --danger: #dc3545;
     }
 
     body {
@@ -222,6 +242,17 @@
     </div>
 
     <div id="settings-tab" class="tab-content">
+      <div class="card">
+        <h3 style="margin-top: 0; font-size: 1rem;">Display</h3>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-size: 0.9em;">Theme</span>
+          <select id="theme-select" style="padding: 4px 8px; border-radius: 4px; background: var(--bg); color: var(--fg); border: 1px solid var(--border);">
+            <option value="system">System Default</option>
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+          </select>
+        </div>
+      </div>
       <div class="card">
         <h3 style="margin-top: 0; font-size: 1rem;">Model Selection</h3>
         <p style="font-size: 0.85em; color: var(--secondary);">Choose the Whisper model to use for transcription.</p>
