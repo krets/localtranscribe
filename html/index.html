@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Local Voice Scribe</title>
+  <link rel="manifest" href="manifest.json">
+  <style>
+    body { font-family: system-ui; padding: 20px; max-width: 600px; margin: 0 auto; }
+    #status { font-weight: bold; margin-bottom: 15px; color: #0056b3; }
+    #transcript { white-space: pre-wrap; background: #f4f4f4; padding: 15px; border-radius: 8px; min-height: 100px; }
+  </style>
+</head>
+<body>
+  <h2>Voice Scribe</h2>
+  <div id="status">Initializing...</div>
+  <div id="transcript"></div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
+
+
