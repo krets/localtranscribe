@@ -6,6 +6,7 @@ let currentAudioBuffer = null;
 let currentFile = null;
 let isTranscribing = false;
 let deferredPrompt = null;
+let db = null;
 
 // Preferences
 const PREFS = {
@@ -23,64 +24,72 @@ const MODELS = [
   { id: 'Xenova/whisper-small', name: 'Small (Multilingual)', size: '465 MB' },
 ];
 
-// UI Elements
-const els = {
-  audioArea: document.getElementById('audio-area'),
-  fileUpload: document.getElementById('file-upload'),
-  audioInfo: document.getElementById('audio-info'),
-  audioFilename: document.getElementById('audio-filename'),
-  transcribeBtn: document.getElementById('transcribe-btn'),
-  flushBtnX: document.getElementById('flush-btn-x'),
-  progressBar: document.getElementById('progress-bar'),
-  progressContainer: document.getElementById('progress-container'),
-  statusText: document.getElementById('status-text'),
-  statAudioLen: document.getElementById('stat-audio-len'),
-  statTranscribeTime: document.getElementById('stat-transcribe-time'),
-  historyToggle: document.getElementById('history-toggle'),
-  themeSelect: document.getElementById('theme-select'),
-  historyList: document.getElementById('history-list'),
-  modelsList: document.getElementById('models-list'),
-  installBtn: document.getElementById('install-btn'),
-  welcomeBanner: document.getElementById('welcome-banner'),
-  closeWelcome: document.getElementById('close-welcome'),
-  infoIcon: document.getElementById('info-icon'),
-};
+// UI Elements (Lazy selection to avoid nulls if script executes early)
+const els = {};
 
-window.addEventListener('beforeinstallprompt', (e) => {
-  e.preventDefault();
-  deferredPrompt = e;
-  els.installBtn.style.display = 'inline-block';
-});
+function initElements() {
+  const ids = [
+    'audio-area', 'file-upload', 'audio-info', 'audio-filename',
+    'transcribe-btn', 'flush-btn-x', 'progress-bar', 'progress-container',
+    'status-text', 'stat-audio-len', 'stat-transcribe-time',
+    'history-toggle', 'theme-select', 'history-list', 'models-list',
+    'install-btn', 'welcome-banner', 'close-welcome', 'info-icon'
+  ];
+  ids.forEach(id => {
+    els[id.replace(/-([a-z])/g, (g) => g[1].toUpperCase())] = document.getElementById(id);
+  });
+}
 
 // --- Initialization ---
 
 async function init() {
-  loadPrefs();
-  applyTheme();
-  setupEventListeners();
-  updateModelsUI();
-  await initDB();
-  await loadCachedAudio();
-  await renderHistory();
+  try {
+    initElements();
+    loadPrefs();
+    applyTheme();
+    setupEventListeners();
+    
+    // Non-critical background init
+    await initDB().catch(e => console.error('DB Init Error:', e));
+    updateModelsUI();
+    loadCachedAudio();
+    renderHistory();
 
-  if (localStorage.getItem('welcome_dismissed')) {
-    els.welcomeBanner.style.display = 'none';
-    els.infoIcon.style.display = 'inline';
+    if (localStorage.getItem('welcome_dismissed')) {
+      if (els.welcomeBanner) els.welcomeBanner.style.display = 'none';
+      if (els.infoIcon) els.infoIcon.style.display = 'inline';
+    }
+
+    // Short delay to ensure SW is settled before checking cache
+    setTimeout(checkSharedFile, 500);
+    
+  } catch (err) {
+    console.error('Initialization error:', err);
+    if (els.statusText) {
+      els.statusText.textContent = "Initialization error. Please reload.";
+      els.statusText.style.color = 'var(--danger)';
+    }
   }
-
-  // Short delay to ensure SW is settled before checking cache
-  setTimeout(checkSharedFile, 500);
 }
 
 function loadPrefs() {
-  const saved = localStorage.getItem('localtranscribe_prefs');
-  if (saved) Object.assign(PREFS, JSON.parse(saved));
-  els.historyToggle.checked = PREFS.historyEnabled;
-  els.themeSelect.value = PREFS.theme || 'system';
+  try {
+    const saved = localStorage.getItem('localtranscribe_prefs');
+    if (saved) Object.assign(PREFS, JSON.parse(saved));
+  } catch (e) {
+    console.warn('Could not load preferences:', e);
+  }
+  
+  if (els.historyToggle) els.historyToggle.checked = PREFS.historyEnabled;
+  if (els.themeSelect) els.themeSelect.value = PREFS.theme || 'system';
 }
 
 function savePrefs() {
-  localStorage.setItem('localtranscribe_prefs', JSON.stringify(PREFS));
+  try {
+    localStorage.setItem('localtranscribe_prefs', JSON.stringify(PREFS));
+  } catch (e) {
+    console.warn('Could not save preferences:', e);
+  }
 }
 
 function applyTheme() {
@@ -93,79 +102,97 @@ function applyTheme() {
 }
 
 function setupEventListeners() {
-  els.audioArea.onclick = () => els.fileUpload.click();
-  els.fileUpload.onchange = (e) => handleFileSelect(e.target.files[0], false);
+  if (els.audioArea) {
+    els.audioArea.onclick = () => els.fileUpload && els.fileUpload.click();
+    els.audioArea.ondragover = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; };
+    els.audioArea.ondrop = (e) => {
+      e.preventDefault();
+      if (e.dataTransfer.files.length) handleFileSelect(e.dataTransfer.files[0], false);
+    };
+  }
 
-  els.audioArea.ondragover = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; };
-  els.audioArea.ondrop = (e) => {
-    e.preventDefault();
-    if (e.dataTransfer.files.length) handleFileSelect(e.dataTransfer.files[0], false);
-  };
+  if (els.fileUpload) {
+    els.fileUpload.onchange = (e) => handleFileSelect(e.target.files[0], false);
+  }
 
-  els.transcribeBtn.onclick = () => startTranscription();
-  els.flushBtnX.onclick = () => flushAudio();
+  if (els.transcribeBtn) els.transcribeBtn.onclick = () => startTranscription();
+  if (els.flushBtnX) els.flushBtnX.onclick = () => flushAudio();
   
-  els.installBtn.onclick = async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-      els.installBtn.style.display = 'none';
-    }
-    deferredPrompt = null;
-  };
+  if (els.installBtn) {
+    els.installBtn.onclick = async () => {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      try {
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') els.installBtn.style.display = 'none';
+      } catch (e) {}
+      deferredPrompt = null;
+    };
+  }
 
-  els.closeWelcome.onclick = () => {
-    els.welcomeBanner.style.display = 'none';
-    els.infoIcon.style.display = 'inline';
-    localStorage.setItem('welcome_dismissed', 'true');
-  };
+  if (els.closeWelcome) {
+    els.closeWelcome.onclick = () => {
+      if (els.welcomeBanner) els.welcomeBanner.style.display = 'none';
+      if (els.infoIcon) els.infoIcon.style.display = 'inline';
+      try { localStorage.setItem('welcome_dismissed', 'true'); } catch (e) {}
+    };
+  }
 
-  els.infoIcon.onclick = () => {
-    els.welcomeBanner.style.display = 'block';
-    els.infoIcon.style.display = 'none';
-    localStorage.removeItem('welcome_dismissed');
-  };
+  if (els.infoIcon) {
+    els.infoIcon.onclick = () => {
+      if (els.welcomeBanner) els.welcomeBanner.style.display = 'block';
+      if (els.infoIcon) els.infoIcon.style.display = 'none';
+      try { localStorage.removeItem('welcome_dismissed'); } catch (e) {}
+    };
+  }
   
-  els.historyToggle.onchange = (e) => {
-    PREFS.historyEnabled = e.target.checked;
-    savePrefs();
-  };
+  if (els.historyToggle) {
+    els.historyToggle.onchange = (e) => {
+      PREFS.historyEnabled = e.target.checked;
+      savePrefs();
+    };
+  }
 
-  els.themeSelect.onchange = (e) => {
-    PREFS.theme = e.target.value;
-    savePrefs();
-    applyTheme();
-  };
+  if (els.themeSelect) {
+    els.themeSelect.onchange = (e) => {
+      PREFS.theme = e.target.value;
+      savePrefs();
+      applyTheme();
+    };
+  }
 
   // Tabs
-  document.getElementById('tab-btn-transcribe').onclick = (e) => showTab('transcribe-tab', e.target);
-  document.getElementById('tab-btn-settings').onclick = (e) => showTab('settings-tab', e.target);
+  const transcribeTabBtn = document.getElementById('tab-btn-transcribe');
+  const settingsTabBtn = document.getElementById('tab-btn-settings');
+  if (transcribeTabBtn) transcribeTabBtn.onclick = (e) => showTab('transcribe-tab', e.target);
+  if (settingsTabBtn) settingsTabBtn.onclick = (e) => showTab('settings-tab', e.target);
 }
 
 function showTab(id, btn) {
   document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById(id).classList.add('active');
-  btn.classList.add('active');
+  const target = document.getElementById(id);
+  if (target) target.classList.add('active');
+  if (btn) btn.classList.add('active');
 }
 
 // --- DB Operations ---
-let db;
+
 async function initDB() {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const request = indexedDB.open('localtranscribe_db', 2);
     request.onupgradeneeded = (e) => {
-      const db = e.target.result;
-      if (!db.objectStoreNames.contains('history')) db.createObjectStore('history', { keyPath: 'id', autoIncrement: true });
-      if (!db.objectStoreNames.contains('cache')) db.createObjectStore('cache', { keyPath: 'key' });
+      const database = e.target.result;
+      if (!database.objectStoreNames.contains('history')) database.createObjectStore('history', { keyPath: 'id', autoIncrement: true });
+      if (!database.objectStoreNames.contains('cache')) database.createObjectStore('cache', { keyPath: 'key' });
     };
     request.onsuccess = (e) => { db = e.target.result; resolve(); };
+    request.onerror = (e) => { console.error('IndexedDB Error:', e); reject(e); };
   });
 }
 
 async function saveToHistory(text, autoExpand = false) {
-  if (!PREFS.historyEnabled) return null;
+  if (!PREFS.historyEnabled || !db) return null;
   const item = { text, date: new Date().toISOString() };
   const tx = db.transaction('history', 'readwrite');
   const store = tx.objectStore('history');
@@ -173,13 +200,15 @@ async function saveToHistory(text, autoExpand = false) {
   
   return new Promise(resolve => {
     tx.oncomplete = () => {
-      renderHistory(request.result); // Pass the new ID to auto-expand
+      renderHistory(request.result); 
       resolve(request.result);
     };
   });
 }
 
 async function renderHistory(expandId = null) {
+  if (!db || !els.historyList) return;
+  
   const tx = db.transaction('history', 'readonly');
   const items = await new Promise(r => {
     const req = tx.objectStore('history').getAll();
@@ -285,8 +314,10 @@ async function renderHistory(expandId = null) {
 async function handleFileSelect(file, startNow = false) {
   if (!file) return;
   currentFile = file;
-  const tx = db.transaction('cache', 'readwrite');
-  tx.objectStore('cache').put({ key: 'currentAudio', file, name: file.name });
+  if (db) {
+    const tx = db.transaction('cache', 'readwrite');
+    tx.objectStore('cache').put({ key: 'currentAudio', file, name: file.name });
+  }
   await processAudioFile(file);
   
   if (startNow) {
@@ -295,26 +326,26 @@ async function handleFileSelect(file, startNow = false) {
 }
 
 async function processAudioFile(file) {
-  els.statusText.textContent = "Loading audio...";
-  els.audioFilename.textContent = file.name;
-  els.audioInfo.classList.remove('hidden');
-  els.audioArea.classList.add('hidden');
+  if (els.statusText) els.statusText.textContent = "Loading audio...";
+  if (els.audioFilename) els.audioFilename.textContent = file.name;
+  if (els.audioInfo) els.audioInfo.classList.remove('hidden');
+  if (els.audioArea) els.audioArea.classList.add('hidden');
 
-  const arrayBuffer = await file.arrayBuffer();
-  const audioContext = new AudioContext({ sampleRate: 16000 });
-  
   try {
+    const arrayBuffer = await file.arrayBuffer();
+    const audioContext = new AudioContext({ sampleRate: 16000 });
     currentAudioBuffer = await audioContext.decodeAudioData(arrayBuffer);
     const duration = currentAudioBuffer.duration;
-    els.statAudioLen.textContent = `${Math.floor(duration / 60)}:${Math.floor(duration % 60).toString().padStart(2, '0')}`;
-    els.statusText.textContent = "Ready.";
+    if (els.statAudioLen) els.statAudioLen.textContent = `${Math.floor(duration / 60)}:${Math.floor(duration % 60).toString().padStart(2, '0')}`;
+    if (els.statusText) els.statusText.textContent = "Ready.";
   } catch (e) {
-    els.statusText.textContent = "Error decoding audio.";
+    if (els.statusText) els.statusText.textContent = "Error decoding audio.";
     console.error(e);
   }
 }
 
 async function loadCachedAudio() {
+  if (!db) return;
   const tx = db.transaction('cache', 'readonly');
   const req = tx.objectStore('cache').get('currentAudio');
   req.onsuccess = async () => {
@@ -328,32 +359,43 @@ async function loadCachedAudio() {
 function flushAudio() {
   currentAudioBuffer = null;
   currentFile = null;
-  els.audioInfo.classList.add('hidden');
-  els.audioArea.classList.remove('hidden');
-  els.statusText.textContent = "Ready.";
-  els.statAudioLen.textContent = "--:--";
-  els.statTranscribeTime.textContent = "--s";
+  if (els.audioInfo) els.audioInfo.classList.add('hidden');
+  if (els.audioArea) els.audioArea.classList.remove('hidden');
+  if (els.statusText) els.statusText.textContent = "Ready.";
+  if (els.statAudioLen) els.statAudioLen.textContent = "--:--";
+  if (els.statTranscribeTime) els.statTranscribeTime.textContent = "--s";
   
-  const tx = db.transaction('cache', 'readwrite');
-  tx.objectStore('cache').delete('currentAudio');
+  if (db) {
+    const tx = db.transaction('cache', 'readwrite');
+    tx.objectStore('cache').delete('currentAudio');
+  }
 }
 
 // --- Model Handling ---
 
 async function updateModelsUI() {
+  if (!els.modelsList) return;
   els.modelsList.innerHTML = '';
-  const cache = await caches.open('transformers-cache');
+  let cache;
+  try {
+    cache = await caches.open('transformers-cache');
+  } catch (e) {
+    console.warn('Cache API not available');
+  }
   
   for (const m of MODELS) {
     const div = document.createElement('div');
     div.style.display = 'flex';
     div.style.justifyContent = 'space-between';
     div.style.alignItems = 'center';
-    div.style.padding = '8px 0';
+    div.style.padding = '10px 0';
     div.style.borderBottom = '1px solid var(--border)';
     
     const isSelected = PREFS.selectedModel === m.id;
-    const isCached = await cache.match(`https://huggingface.co/${m.id}/resolve/main/config.json`);
+    let isCached = false;
+    if (cache) {
+      isCached = await cache.match(`https://huggingface.co/${m.id}/resolve/main/config.json`);
+    }
 
     div.innerHTML = `
       <div style="font-size: 0.9em;">
@@ -379,13 +421,15 @@ window.selectModel = (modelId) => {
 
 window.deleteModel = async (modelId) => {
   if (!confirm(`Delete model files for ${modelId}?`)) return;
-  const cache = await caches.open('transformers-cache');
-  const keys = await cache.keys();
-  for (const key of keys) {
-    if (key.url.includes(modelId)) await cache.delete(key);
-  }
-  if (PREFS.selectedModel === modelId) transcriber = null;
-  updateModelsUI();
+  try {
+    const cache = await caches.open('transformers-cache');
+    const keys = await cache.keys();
+    for (const key of keys) {
+      if (key.url.includes(modelId)) await cache.delete(key);
+    }
+    if (PREFS.selectedModel === modelId) transcriber = null;
+    updateModelsUI();
+  } catch (e) {}
 };
 
 // --- Transcription ---
@@ -393,22 +437,22 @@ window.deleteModel = async (modelId) => {
 async function startTranscription() {
   if (isTranscribing || !currentAudioBuffer) return;
   isTranscribing = true;
-  els.transcribeBtn.disabled = true;
-  els.progressContainer.style.display = 'none'; // Only show if downloading
+  if (els.transcribeBtn) els.transcribeBtn.disabled = true;
+  if (els.progressContainer) els.progressContainer.style.display = 'none'; 
   
   const startTime = performance.now();
-  els.statTranscribeTime.textContent = "...";
+  if (els.statTranscribeTime) els.statTranscribeTime.textContent = "...";
   
   try {
     if (!transcriber) {
-      els.statusText.textContent = "Preparing model...";
+      if (els.statusText) els.statusText.textContent = "Preparing model...";
       transcriber = await pipeline('automatic-speech-recognition', PREFS.selectedModel, {
         progress_callback: (p) => {
-          if (p.status === 'progress') {
+          if (p.status === 'progress' && els.progressContainer && els.progressBar && els.statusText) {
             els.progressContainer.style.display = 'block';
             els.progressBar.style.width = p.progress + '%';
             els.statusText.textContent = `Downloading model: ${Math.round(p.progress)}%`;
-          } else if (p.status === 'ready') {
+          } else if (p.status === 'ready' && els.progressContainer && els.statusText) {
             els.progressContainer.style.display = 'none';
             els.statusText.textContent = "Model ready.";
           }
@@ -416,29 +460,28 @@ async function startTranscription() {
       });
     }
 
-    els.statusText.innerHTML = 'Transcribing... <span class="spinner"></span>';
+    if (els.statusText) els.statusText.innerHTML = 'Transcribing... <span class="spinner"></span>';
     
-    // Give browser a moment to paint the spinner
     await new Promise(r => setTimeout(r, 100));
 
     const audioData = currentAudioBuffer.getChannelData(0);
     const result = await transcriber(audioData);
     
     const duration = ((performance.now() - startTime) / 1000).toFixed(1);
-    els.statTranscribeTime.textContent = `${duration}s`;
+    if (els.statTranscribeTime) els.statTranscribeTime.textContent = `${duration}s`;
     
-    els.statusText.innerHTML = '<span class="badge-success"><svg class="icon" viewBox="0 0 24 24"><path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z" /></svg> Success</span>';
+    if (els.statusText) els.statusText.innerHTML = '<span class="badge-success"><svg class="icon" viewBox="0 0 24 24"><path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z" /></svg> Success</span>';
     await saveToHistory(result.text, true);
-    updateModelsUI(); // Refresh "Saved" status
+    updateModelsUI(); 
 
   } catch (err) {
     console.error(err);
-    els.statusText.textContent = "Error occurred.";
-    transcriber = null; // Reset on error
+    if (els.statusText) els.statusText.textContent = "Error occurred.";
+    transcriber = null;
   } finally {
     isTranscribing = false;
-    els.transcribeBtn.disabled = false;
-    els.progressContainer.style.display = 'none';
+    if (els.transcribeBtn) els.transcribeBtn.disabled = false;
+    if (els.progressContainer) els.progressContainer.style.display = 'none';
   }
 }
 
@@ -446,43 +489,47 @@ async function checkSharedFile() {
   const urlParams = new URLSearchParams(window.location.search);
   const isShareFromUrl = urlParams.has('share');
   if (isShareFromUrl) {
-    // Clear URL param without reload
     window.history.replaceState({}, document.title, "/");
   }
 
   if (!('serviceWorker' in navigator)) return;
 
-  // Poll for the shared file in the Cache Storage
-  // If we came from a share redirect, we poll for longer
   let attempts = 0;
   const maxAttempts = isShareFromUrl ? 25 : 10; 
   
   while (attempts < maxAttempts) {
-    const cache = await caches.open('share-target-cache');
-    const response = await cache.match('/shared-audio');
-    
-    if (response) {
-      els.statusText.textContent = "Detecting shared file...";
-      const file = await response.blob();
-      const filenameRaw = response.headers.get('x-filename') || 'Shared Audio';
-      const filename = decodeURIComponent(filenameRaw);
-      const sharedFile = new File([file], filename, { type: file.type || 'audio/wav' });
+    try {
+      const cache = await caches.open('share-target-cache');
+      const response = await cache.match('/shared-audio');
       
-      await cache.delete('/shared-audio');
-      
-      console.log('App: Processing shared file:', filename);
-      if (!db) await initDB();
-      await handleFileSelect(sharedFile, true);
-      return;
-    }
+      if (response) {
+        if (els.statusText) els.statusText.textContent = "Detecting shared file...";
+        const blob = await response.blob();
+        const filenameRaw = response.headers.get('x-filename') || 'Shared Audio';
+        const filename = decodeURIComponent(filenameRaw);
+        const sharedFile = new File([blob], filename, { type: blob.type || 'audio/wav' });
+        
+        await cache.delete('/shared-audio');
+        
+        if (!db) await initDB();
+        await handleFileSelect(sharedFile, true);
+        return;
+      }
+    } catch (e) {}
     
     await new Promise(r => setTimeout(r, 200));
     attempts++;
   }
 }
 
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  if (els.installBtn) els.installBtn.style.display = 'inline-block';
+});
+
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js');
+  navigator.serviceWorker.register('/sw.js').catch(console.error);
 }
 
 init();
