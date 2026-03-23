@@ -5,6 +5,7 @@ let transcriber = null;
 let currentAudioBuffer = null;
 let currentFile = null;
 let isTranscribing = false;
+let deferredPrompt = null;
 
 // Preferences
 const PREFS = {
@@ -39,7 +40,14 @@ const els = {
   themeSelect: document.getElementById('theme-select'),
   historyList: document.getElementById('history-list'),
   modelsList: document.getElementById('models-list'),
+  installBtn: document.getElementById('install-btn'),
 };
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  els.installBtn.style.display = 'inline-block';
+});
 
 // --- Initialization ---
 
@@ -88,6 +96,16 @@ function setupEventListeners() {
 
   els.transcribeBtn.onclick = () => startTranscription();
   els.flushBtnX.onclick = () => flushAudio();
+  
+  els.installBtn.onclick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      els.installBtn.style.display = 'none';
+    }
+    deferredPrompt = null;
+  };
   
   els.historyToggle.onchange = (e) => {
     PREFS.historyEnabled = e.target.checked;
