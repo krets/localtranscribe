@@ -1,11 +1,11 @@
-const CACHE_NAME = 'localtranscribe-v4';
+const CACHE_NAME = 'localtranscribe-v5';
 const ASSETS = [
   '/',
   '/index.html',
   '/app.js',
   '/manifest.json',
-  '/icon-192-v4.png',
-  '/icon-512-v4.png',
+  '/icon-192-v5.png',
+  '/icon-512-v5.png',
   'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.0'
 ];
 
@@ -42,11 +42,17 @@ self.addEventListener('fetch', (event) => {
         if (file) {
           const cache = await caches.open('share-target-cache');
           await cache.put('/shared-audio', new Response(file, {
-            headers: { 'x-filename': encodeURIComponent(file.name || 'Shared Audio') }
+            headers: { 
+              'x-filename': encodeURIComponent(file.name || 'Shared Audio'),
+              'Content-Type': file.type
+            }
           }));
+          console.log('SW: Shared file cached successfully:', file.name);
+        } else {
+          console.warn('SW: No audio_file found in form data');
         }
       } catch (err) {
-        console.error('Share target error:', err);
+        console.error('SW: Share target form data error:', err);
       }
       return Response.redirect('/?share=1', 303);
     })());

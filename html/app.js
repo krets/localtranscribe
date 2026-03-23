@@ -452,9 +452,12 @@ async function checkSharedFile() {
 
   if (!('serviceWorker' in navigator)) return;
 
-  // Poll for the shared file in the Cache Storage (up to 10 attempts over 2 seconds)
+  // Poll for the shared file in the Cache Storage
+  // If we came from a share redirect, we poll for longer
   let attempts = 0;
-  while (attempts < 10) {
+  const maxAttempts = isShareFromUrl ? 25 : 10; 
+  
+  while (attempts < maxAttempts) {
     const cache = await caches.open('share-target-cache');
     const response = await cache.match('/shared-audio');
     
@@ -463,18 +466,16 @@ async function checkSharedFile() {
       const file = await response.blob();
       const filenameRaw = response.headers.get('x-filename') || 'Shared Audio';
       const filename = decodeURIComponent(filenameRaw);
-      const sharedFile = new File([file], filename, { type: file.type });
+      const sharedFile = new File([file], filename, { type: file.type || 'audio/wav' });
       
       await cache.delete('/shared-audio');
       
-      console.log('Processing shared file:', filename);
+      console.log('App: Processing shared file:', filename);
       if (!db) await initDB();
-      // Share from app: start transcription immediately
       await handleFileSelect(sharedFile, true);
       return;
     }
     
-    // If we have the share param, we're very likely to get a file soon, so we wait
     await new Promise(r => setTimeout(r, 200));
     attempts++;
   }
