@@ -1,11 +1,11 @@
-const CACHE_NAME = 'localtranscribe-v7';
+const CACHE_NAME = 'localtranscribe-v8';
 const ASSETS = [
   './',
   'index.html',
   'app.js',
   'manifest.json',
-  'icon-192-v7.png',
-  'icon-512-v7.png',
+  'icon-192-v8.png',
+  'icon-512-v8.png',
   'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.0'
 ];
 

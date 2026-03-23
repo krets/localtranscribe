@@ -1,4 +1,4 @@
-<img src="html/icon-512-v7.png" width="128" alt="Logo">
+<img src="html/icon-512-v8.png" width="128" alt="Logo">
 
 ## Local Transcribe
 

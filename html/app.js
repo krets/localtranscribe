@@ -484,7 +484,18 @@ async function startTranscription() {
     await new Promise(r => setTimeout(r, 100));
 
     const audioData = currentAudioBuffer.getChannelData(0);
-    const result = await transcriber(audioData);
+    const result = await transcriber(audioData, {
+      chunk_length_s: 30,
+      stride_length_s: 5,
+      chunk_callback: (chunk) => {
+        // Optional: you could update status with chunk progress here
+        if (els.statusText) {
+          const processed = (chunk.chunk_index + 1) * 30;
+          const total = currentAudioBuffer.duration.toFixed(0);
+          els.statusText.innerHTML = `Transcribing... ${processed}s / ${total}s <span class="spinner"></span>`;
+        }
+      }
+    });
     
     const duration = ((performance.now() - startTime) / 1000).toFixed(1);
     if (els.statTranscribeTime) els.statTranscribeTime.textContent = `${duration}s`;
