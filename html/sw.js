@@ -1,11 +1,11 @@
-const CACHE_NAME = 'localtranscribe-v6';
+const CACHE_NAME = 'localtranscribe-v7';
 const ASSETS = [
-  '/',
-  '/index.html',
-  '/app.js',
-  '/manifest.json',
-  '/icon-192-v6.png',
-  '/icon-512-v6.png',
+  './',
+  'index.html',
+  'app.js',
+  'manifest.json',
+  'icon-192-v7.png',
+  'icon-512-v7.png',
   'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.0'
 ];
 
@@ -33,7 +33,7 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
   // Handle Share Target POST request to root
-  if (event.request.method === 'POST' && (url.pathname === '/' || url.pathname === '/index.html')) {
+  if (event.request.method === 'POST') {
     event.respondWith((async () => {
       try {
         const formData = await event.request.formData();
@@ -41,20 +41,17 @@ self.addEventListener('fetch', (event) => {
         
         if (file) {
           const cache = await caches.open('share-target-cache');
-          await cache.put('/shared-audio', new Response(file, {
+          await cache.put('./shared-audio', new Response(file, {
             headers: { 
               'x-filename': encodeURIComponent(file.name || 'Shared Audio'),
               'Content-Type': file.type
             }
           }));
-          console.log('SW: Shared file cached successfully:', file.name);
-        } else {
-          console.warn('SW: No audio_file found in form data');
         }
       } catch (err) {
         console.error('SW: Share target form data error:', err);
       }
-      return Response.redirect('/?share=1', 303);
+      return Response.redirect('./?share=1', 303);
     })());
     return;
   }

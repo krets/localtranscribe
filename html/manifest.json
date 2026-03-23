@@ -1,24 +1,24 @@
 {
   "name": "Local Transcribe",
   "short_name": "Local Transcribe",
-  "start_url": "/",
+  "start_url": ".",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#317EFB",
   "icons": [
     {
-      "src": "/icon-192-v6.png",
+      "src": "icon-192-v7.png",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "/icon-512-v6.png",
+      "src": "icon-512-v7.png",
       "sizes": "512x512",
       "type": "image/png"
     }
   ],
   "share_target": {
-    "action": "/",
+    "action": ".",
     "method": "POST",
     "enctype": "multipart/form-data",
     "params": {

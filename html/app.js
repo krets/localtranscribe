@@ -24,43 +24,52 @@ const MODELS = [
   { id: 'Xenova/whisper-small', name: 'Small (Multilingual)', size: '465 MB' },
 ];
 
-// UI Elements (Lazy selection to avoid nulls if script executes early)
-const els = {};
-
-function initElements() {
-  const ids = [
-    'audio-area', 'file-upload', 'audio-info', 'audio-filename',
-    'transcribe-btn', 'flush-btn-x', 'progress-bar', 'progress-container',
-    'status-text', 'stat-audio-len', 'stat-transcribe-time',
-    'history-toggle', 'theme-select', 'history-list', 'models-list',
-    'install-btn', 'welcome-banner', 'close-welcome', 'info-icon'
-  ];
-  ids.forEach(id => {
-    els[id.replace(/-([a-z])/g, (g) => g[1].toUpperCase())] = document.getElementById(id);
-  });
-}
+// UI Elements - Direct selection
+const els = {
+  audioArea: document.getElementById('audio-area'),
+  fileUpload: document.getElementById('file-upload'),
+  audioInfo: document.getElementById('audio-info'),
+  audioFilename: document.getElementById('audio-filename'),
+  transcribeBtn: document.getElementById('transcribe-btn'),
+  flushBtnX: document.getElementById('flush-btn-x'),
+  progressBar: document.getElementById('progress-bar'),
+  progressContainer: document.getElementById('progress-container'),
+  statusText: document.getElementById('status-text'),
+  statAudioLen: document.getElementById('stat-audio-len'),
+  statTranscribeTime: document.getElementById('stat-transcribe-time'),
+  historyToggle: document.getElementById('history-toggle'),
+  themeSelect: document.getElementById('theme-select'),
+  historyList: document.getElementById('history-list'),
+  modelsList: document.getElementById('models-list'),
+  installBtn: document.getElementById('install-btn'),
+  welcomeBanner: document.getElementById('welcome-banner'),
+  closeWelcome: document.getElementById('close-welcome'),
+  infoIcon: document.getElementById('info-icon')
+};
 
 // --- Initialization ---
 
 async function init() {
   try {
-    initElements();
     loadPrefs();
     applyTheme();
     setupEventListeners();
     
     // Non-critical background init
-    await initDB().catch(e => console.error('DB Init Error:', e));
-    updateModelsUI();
-    loadCachedAudio();
-    renderHistory();
+    initDB()
+      .then(() => {
+        updateModelsUI();
+        loadCachedAudio();
+        renderHistory();
+      })
+      .catch(e => console.error('DB Init Error:', e));
 
     if (localStorage.getItem('welcome_dismissed')) {
       if (els.welcomeBanner) els.welcomeBanner.style.display = 'none';
       if (els.infoIcon) els.infoIcon.style.display = 'inline';
     }
 
-    // Short delay to ensure SW is settled before checking cache
+    // Check for shared file
     setTimeout(checkSharedFile, 500);
     
   } catch (err) {
@@ -103,7 +112,7 @@ function applyTheme() {
 
 function setupEventListeners() {
   if (els.audioArea) {
-    els.audioArea.onclick = () => els.fileUpload && els.fileUpload.click();
+    els.audioArea.onclick = (e) => { e.preventDefault(); els.fileUpload && els.fileUpload.click(); };
     els.audioArea.ondragover = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; };
     els.audioArea.ondrop = (e) => {
       e.preventDefault();
@@ -164,8 +173,8 @@ function setupEventListeners() {
   // Tabs
   const transcribeTabBtn = document.getElementById('tab-btn-transcribe');
   const settingsTabBtn = document.getElementById('tab-btn-settings');
-  if (transcribeTabBtn) transcribeTabBtn.onclick = (e) => showTab('transcribe-tab', e.target);
-  if (settingsTabBtn) settingsTabBtn.onclick = (e) => showTab('settings-tab', e.target);
+  if (transcribeTabBtn) transcribeTabBtn.onclick = (e) => showTab('transcribe-tab', e.currentTarget);
+  if (settingsTabBtn) settingsTabBtn.onclick = (e) => showTab('settings-tab', e.currentTarget);
 }
 
 function showTab(id, btn) {
@@ -180,14 +189,16 @@ function showTab(id, btn) {
 
 async function initDB() {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open('localtranscribe_db', 2);
-    request.onupgradeneeded = (e) => {
-      const database = e.target.result;
-      if (!database.objectStoreNames.contains('history')) database.createObjectStore('history', { keyPath: 'id', autoIncrement: true });
-      if (!database.objectStoreNames.contains('cache')) database.createObjectStore('cache', { keyPath: 'key' });
-    };
-    request.onsuccess = (e) => { db = e.target.result; resolve(); };
-    request.onerror = (e) => { console.error('IndexedDB Error:', e); reject(e); };
+    try {
+      const request = indexedDB.open('localtranscribe_db', 2);
+      request.onupgradeneeded = (e) => {
+        const database = e.target.result;
+        if (!database.objectStoreNames.contains('history')) database.createObjectStore('history', { keyPath: 'id', autoIncrement: true });
+        if (!database.objectStoreNames.contains('cache')) database.createObjectStore('cache', { keyPath: 'key' });
+      };
+      request.onsuccess = (e) => { db = e.target.result; resolve(); };
+      request.onerror = (e) => { console.error('IndexedDB Error:', e); reject(e); };
+    } catch (e) { reject(e); }
   });
 }
 
@@ -315,8 +326,10 @@ async function handleFileSelect(file, startNow = false) {
   if (!file) return;
   currentFile = file;
   if (db) {
-    const tx = db.transaction('cache', 'readwrite');
-    tx.objectStore('cache').put({ key: 'currentAudio', file, name: file.name });
+    try {
+      const tx = db.transaction('cache', 'readwrite');
+      tx.objectStore('cache').put({ key: 'currentAudio', file, name: file.name });
+    } catch (e) {}
   }
   await processAudioFile(file);
   
@@ -346,14 +359,16 @@ async function processAudioFile(file) {
 
 async function loadCachedAudio() {
   if (!db) return;
-  const tx = db.transaction('cache', 'readonly');
-  const req = tx.objectStore('cache').get('currentAudio');
-  req.onsuccess = async () => {
-    if (req.result) {
-      currentFile = req.result.file;
-      await processAudioFile(currentFile);
-    }
-  };
+  try {
+    const tx = db.transaction('cache', 'readonly');
+    const req = tx.objectStore('cache').get('currentAudio');
+    req.onsuccess = async () => {
+      if (req.result) {
+        currentFile = req.result.file;
+        await processAudioFile(currentFile);
+      }
+    };
+  } catch (e) {}
 }
 
 function flushAudio() {
@@ -366,8 +381,10 @@ function flushAudio() {
   if (els.statTranscribeTime) els.statTranscribeTime.textContent = "--s";
   
   if (db) {
-    const tx = db.transaction('cache', 'readwrite');
-    tx.objectStore('cache').delete('currentAudio');
+    try {
+      const tx = db.transaction('cache', 'readwrite');
+      tx.objectStore('cache').delete('currentAudio');
+    } catch (e) {}
   }
 }
 
@@ -394,7 +411,9 @@ async function updateModelsUI() {
     const isSelected = PREFS.selectedModel === m.id;
     let isCached = false;
     if (cache) {
-      isCached = await cache.match(`https://huggingface.co/${m.id}/resolve/main/config.json`);
+      try {
+        isCached = await cache.match(`https://huggingface.co/${m.id}/resolve/main/config.json`);
+      } catch (e) {}
     }
 
     div.innerHTML = `
@@ -489,7 +508,7 @@ async function checkSharedFile() {
   const urlParams = new URLSearchParams(window.location.search);
   const isShareFromUrl = urlParams.has('share');
   if (isShareFromUrl) {
-    window.history.replaceState({}, document.title, "/");
+    window.history.replaceState({}, document.title, window.location.pathname);
   }
 
   if (!('serviceWorker' in navigator)) return;
@@ -500,7 +519,7 @@ async function checkSharedFile() {
   while (attempts < maxAttempts) {
     try {
       const cache = await caches.open('share-target-cache');
-      const response = await cache.match('/shared-audio');
+      const response = await cache.match('./shared-audio');
       
       if (response) {
         if (els.statusText) els.statusText.textContent = "Detecting shared file...";
@@ -509,7 +528,7 @@ async function checkSharedFile() {
         const filename = decodeURIComponent(filenameRaw);
         const sharedFile = new File([blob], filename, { type: blob.type || 'audio/wav' });
         
-        await cache.delete('/shared-audio');
+        await cache.delete('./shared-audio');
         
         if (!db) await initDB();
         await handleFileSelect(sharedFile, true);
@@ -529,7 +548,7 @@ window.addEventListener('beforeinstallprompt', (e) => {
 });
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js').catch(console.error);
+  navigator.serviceWorker.register('sw.js').catch(console.error);
 }
 
 init();
