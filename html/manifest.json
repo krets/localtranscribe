@@ -1,6 +1,6 @@
 {
-  "name": "Secure Transcription Field Utility",
-  "short_name": "STFU",
+  "name": "Local Transcribe",
+  "short_name": "Local Transcribe",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

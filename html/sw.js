@@ -1,4 +1,4 @@
-const CACHE_NAME = 'stfu-v3';
+const CACHE_NAME = 'localtranscribe-v1';
 const ASSETS = [
   '/',
   '/index.html',

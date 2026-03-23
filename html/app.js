@@ -57,14 +57,14 @@ async function init() {
 }
 
 function loadPrefs() {
-  const saved = localStorage.getItem('stfu_prefs');
+  const saved = localStorage.getItem('localtranscribe_prefs');
   if (saved) Object.assign(PREFS, JSON.parse(saved));
   els.historyToggle.checked = PREFS.historyEnabled;
   els.themeSelect.value = PREFS.theme || 'system';
 }
 
 function savePrefs() {
-  localStorage.setItem('stfu_prefs', JSON.stringify(PREFS));
+  localStorage.setItem('localtranscribe_prefs', JSON.stringify(PREFS));
 }
 
 function applyTheme() {
@@ -116,7 +116,7 @@ function showTab(id, btn) {
 let db;
 async function initDB() {
   return new Promise((resolve) => {
-    const request = indexedDB.open('stfu_db', 2);
+    const request = indexedDB.open('localtranscribe_db', 2);
     request.onupgradeneeded = (e) => {
       const db = e.target.result;
       if (!db.objectStoreNames.contains('history')) db.createObjectStore('history', { keyPath: 'id', autoIncrement: true });

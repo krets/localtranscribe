@@ -1,10 +1,10 @@
 <img src="html/icon-512.png" width="128" alt="Logo">
 
-## Secure Transcription Field Utility
+## Local Transcribe
 
 Just a utility for offline audio transcription. It runs OpenAI's Whisper models locally in your browser so your audio doesn't leave your device.
 
-Available at [https://stfu.krets.com](https://stfu.krets.com).
+Available at [https://localtranscribe.krets.com](https://localtranscribe.krets.com).
 
 
 ## Overview
