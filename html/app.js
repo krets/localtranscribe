@@ -487,21 +487,42 @@ async function startTranscription() {
     const result = await transcriber(audioData, {
       chunk_length_s: 30,
       stride_length_s: 5,
+      return_timestamps: 'word',
       chunk_callback: (chunk) => {
         if (els.statusText) {
-          // In some versions, the callback arg is the chunk object directly
           const chunkIndex = (chunk && typeof chunk.chunk_index === 'number') ? chunk.chunk_index + 1 : '?';
           const estimatedTotal = Math.ceil(currentAudioBuffer.duration / 25);
           els.statusText.innerHTML = `Transcribing... chunk ${chunkIndex} / ~${estimatedTotal} <span class="spinner"></span>`;
         }
       }
     });
+
+    // Process result with word-level timestamps to insert line breaks for pauses > 1.5s
+    let processedText = "";
+    if (result.chunks && result.chunks.length > 0) {
+      for (let i = 0; i < result.chunks.length; i++) {
+        const chunk = result.chunks[i];
+        processedText += chunk.text;
+        
+        if (i < result.chunks.length - 1) {
+          const nextChunk = result.chunks[i + 1];
+          if (chunk.timestamp && nextChunk.timestamp) {
+            const pause = nextChunk.timestamp[0] - chunk.timestamp[1];
+            if (pause >= 1.5) {
+              processedText += "\n\n";
+            }
+          }
+        }
+      }
+    } else {
+      processedText = result.text;
+    }
     
     const duration = ((performance.now() - startTime) / 1000).toFixed(1);
     if (els.statTranscribeTime) els.statTranscribeTime.textContent = `${duration}s`;
     
     if (els.statusText) els.statusText.innerHTML = '<span class="badge-success"><svg class="icon" viewBox="0 0 24 24"><path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z" /></svg> Success</span>';
-    await saveToHistory(result.text, true);
+    await saveToHistory(processedText.trim(), true);
     updateModelsUI(); 
 
   } catch (err) {
