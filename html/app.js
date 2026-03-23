@@ -41,6 +41,7 @@ const els = {
   historyList: document.getElementById('history-list'),
   modelsList: document.getElementById('models-list'),
   installBtn: document.getElementById('install-btn'),
+  historySearch: document.getElementById('history-search'),
 };
 
 window.addEventListener('beforeinstallprompt', (e) => {
@@ -118,6 +119,8 @@ function setupEventListeners() {
     applyTheme();
   };
 
+  els.historySearch.oninput = () => renderHistory();
+
   // Tabs
   document.getElementById('tab-btn-transcribe').onclick = (e) => showTab('transcribe-tab', e.target);
   document.getElementById('tab-btn-settings').onclick = (e) => showTab('settings-tab', e.target);
@@ -167,7 +170,13 @@ async function renderHistory(expandId = null) {
   });
   
   els.historyList.innerHTML = '';
-  items.sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(item => {
+  const searchTerm = els.historySearch.value.toLowerCase();
+  
+  const sortedItems = items.sort((a, b) => new Date(b.date) - new Date(a.date));
+  
+  sortedItems.forEach((item, index) => {
+    if (searchTerm && !item.text.toLowerCase().includes(searchTerm)) return;
+
     const div = document.createElement('div');
     div.className = 'history-item';
     if (item.id === expandId) div.classList.add('active');
@@ -175,10 +184,15 @@ async function renderHistory(expandId = null) {
     const dateObj = new Date(item.date);
     const dateStr = dateObj.toLocaleDateString() + ' ' + dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
+    const isNew = index === 0 && (new Date() - dateObj < 60000); // New if < 1 min old
+
     const summary = document.createElement('div');
     summary.className = 'history-summary';
     summary.innerHTML = `
-      <div class="history-date">${dateStr}</div>
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div class="history-date">${dateStr}</div>
+        ${isNew ? '<span class="badge-success" style="font-size:0.7em; background:var(--success); color:white; padding:2px 6px; border-radius:4px;">NEW</span>' : ''}
+      </div>
       <div class="history-text-preview">${item.text}</div>
     `;
     
@@ -188,10 +202,11 @@ async function renderHistory(expandId = null) {
     const headerDiv = document.createElement('div');
     headerDiv.style.display = 'flex';
     headerDiv.style.justifyContent = 'space-between';
-    headerDiv.style.fontSize = '0.8em';
-    headerDiv.style.marginBottom = '5px';
+    headerDiv.style.fontSize = '0.75em';
+    headerDiv.style.marginBottom = '8px';
     headerDiv.style.color = 'var(--secondary)';
-    headerDiv.innerHTML = `<span>${dateStr}</span><span style="cursor:pointer;" onclick="this.closest('.history-item').classList.remove('active')">collapse ↑</span>`;
+    headerDiv.style.fontWeight = 'bold';
+    headerDiv.innerHTML = `<span>${dateStr}</span><span style="cursor:pointer; color:var(--primary);" onclick="this.closest('.history-item').classList.remove('active')">COLLAPSE ↑</span>`;
 
     const fullTextDiv = document.createElement('div');
     fullTextDiv.className = 'history-full-text';
@@ -201,18 +216,21 @@ async function renderHistory(expandId = null) {
     actionsDiv.className = 'controls';
     
     const copyBtn = document.createElement('button');
-    copyBtn.className = 'btn btn-secondary btn-sm';
-    copyBtn.textContent = 'Copy';
+    copyBtn.className = 'btn btn-secondary btn-icon';
+    copyBtn.title = 'Copy to clipboard';
+    copyBtn.innerHTML = '<svg class="icon" viewBox="0 0 24 24"><path d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z" /></svg>';
     copyBtn.onclick = (e) => {
       e.stopPropagation();
       navigator.clipboard.writeText(item.text);
-      copyBtn.textContent = 'Copied!';
-      setTimeout(() => copyBtn.textContent = 'Copy', 2000);
+      const original = copyBtn.innerHTML;
+      copyBtn.innerHTML = '<svg class="icon" viewBox="0 0 24 24"><path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z" /></svg>';
+      setTimeout(() => copyBtn.innerHTML = original, 2000);
     };
     
     const deleteBtn = document.createElement('button');
-    deleteBtn.className = 'btn btn-danger btn-sm';
-    deleteBtn.textContent = 'Delete';
+    deleteBtn.className = 'btn btn-danger btn-icon';
+    deleteBtn.title = 'Delete transcription';
+    deleteBtn.innerHTML = '<svg class="icon" viewBox="0 0 24 24"><path d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19V4M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z" /></svg>';
     deleteBtn.onclick = async (e) => {
       e.stopPropagation();
       if (!confirm('Delete this transcription?')) return;
@@ -382,7 +400,7 @@ async function startTranscription() {
     const duration = ((performance.now() - startTime) / 1000).toFixed(1);
     els.statTranscribeTime.textContent = `${duration}s`;
     
-    els.statusText.textContent = "Done.";
+    els.statusText.innerHTML = '<span class="badge-success"><svg class="icon" viewBox="0 0 24 24"><path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z" /></svg> Success</span>';
     await saveToHistory(result.text, true);
     updateModelsUI(); // Refresh "Saved" status
 
