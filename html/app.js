@@ -41,7 +41,6 @@ const els = {
   historyList: document.getElementById('history-list'),
   modelsList: document.getElementById('models-list'),
   installBtn: document.getElementById('install-btn'),
-  historySearch: document.getElementById('history-search'),
 };
 
 window.addEventListener('beforeinstallprompt', (e) => {
@@ -119,8 +118,6 @@ function setupEventListeners() {
     applyTheme();
   };
 
-  els.historySearch.oninput = () => renderHistory();
-
   // Tabs
   document.getElementById('tab-btn-transcribe').onclick = (e) => showTab('transcribe-tab', e.target);
   document.getElementById('tab-btn-settings').onclick = (e) => showTab('settings-tab', e.target);
@@ -170,13 +167,9 @@ async function renderHistory(expandId = null) {
   });
   
   els.historyList.innerHTML = '';
-  const searchTerm = els.historySearch.value.toLowerCase();
-  
   const sortedItems = items.sort((a, b) => new Date(b.date) - new Date(a.date));
   
   sortedItems.forEach((item, index) => {
-    if (searchTerm && !item.text.toLowerCase().includes(searchTerm)) return;
-
     const div = document.createElement('div');
     div.className = 'history-item';
     if (item.id === expandId) div.classList.add('active');
