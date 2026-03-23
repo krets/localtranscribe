@@ -3,12 +3,6 @@ import numpy as np
 from PIL import Image
 
 def generate_fuzzy_icons(input_path, threshold=30):
-    """
-    Args:
-        input_path: Path to the input image.
-        threshold: Fuzziness. 0 is exact match.
-                   30 is a good starting point for subtle gradients.
-    """
     print(f"Opening {input_path}...")
     with Image.open(input_path).convert("RGBA") as img:
         
@@ -44,6 +38,11 @@ def generate_fuzzy_icons(input_path, threshold=30):
             icon = squared_img.resize((size, size), Image.Resampling.LANCZOS)
             icon.save(f"icon-{size}.png")
             print(f"Saved icon-{size}.png (threshold: {threshold})")
+
+        # Generate multi-resolution favicon.ico
+        favicon_sizes = [(16, 16), (32, 32), (48, 48), (64, 64)]
+        squared_img.save("favicon.ico", format="ICO", sizes=favicon_sizes)
+        print("Saved favicon.ico (bundled sizes: 16, 32, 48, 64)")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate square icons with transparent backgrounds.")
