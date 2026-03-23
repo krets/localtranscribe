@@ -489,11 +489,10 @@ async function startTranscription() {
       stride_length_s: 5,
       chunk_callback: (chunk) => {
         if (els.statusText) {
-          // chunks is an array of already processed chunks
-          const processedCount = chunk.chunks.length;
-          // Approximate total chunks: duration / (chunk_length - stride)
+          // In some versions, the callback arg is the chunk object directly
+          const chunkIndex = (chunk && typeof chunk.chunk_index === 'number') ? chunk.chunk_index + 1 : '?';
           const estimatedTotal = Math.ceil(currentAudioBuffer.duration / 25);
-          els.statusText.innerHTML = `Transcribing... chunk ${processedCount} / ~${estimatedTotal} <span class="spinner"></span>`;
+          els.statusText.innerHTML = `Transcribing... chunk ${chunkIndex} / ~${estimatedTotal} <span class="spinner"></span>`;
         }
       }
     });

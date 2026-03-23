@@ -1,11 +1,11 @@
-const CACHE_NAME = 'localtranscribe-v10';
+const CACHE_NAME = 'localtranscribe-v11';
 const ASSETS = [
   './',
   'index.html',
   'app.js',
   'manifest.json',
-  'icon-192-v10.png',
-  'icon-512-v10.png',
+  'icon-192-v11.png',
+  'icon-512-v11.png',
   'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.0'
 ];
 
@@ -41,7 +41,7 @@ self.addEventListener('fetch', (event) => {
         
         if (file) {
           const cache = await caches.open('share-target-cache');
-          await cache.put('./shared-audio', new Response(file, {
+          await cache.put('/shared-audio', new Response(file, {
             headers: { 
               'x-filename': encodeURIComponent(file.name || 'Shared Audio'),
               'Content-Type': file.type
