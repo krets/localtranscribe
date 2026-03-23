@@ -79,6 +79,15 @@
       box-shadow: var(--shadow);
     }
 
+    .action-card {
+      border: 1px solid var(--primary);
+      box-shadow: 0 4px 12px rgba(0, 123, 255, 0.15);
+      background: var(--bg-alt);
+    }
+    @media (prefers-color-scheme: dark) {
+      .action-card { box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5); }
+    }
+
     #audio-area {
       border: 2px dashed var(--border);
       padding: 40px 20px;
@@ -141,38 +150,52 @@
     }
 
     .history-item {
-      background: var(--bg-history);
+      background: var(--bg);
       border: 1px solid var(--border);
       border-radius: 10px;
       margin-bottom: 12px;
       overflow: hidden;
-      transition: transform 0.2s;
+      transition: border-color 0.2s;
     }
     .history-summary {
       display: flex;
       flex-direction: column;
       cursor: pointer;
-      padding: 16px;
-      gap: 6px;
+      padding: 12px;
+      gap: 4px;
     }
     .history-text-preview {
       font-weight: 600;
-      white-space: nowrap;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
       overflow: hidden;
-      text-overflow: ellipsis;
       font-size: 0.95em;
       color: var(--fg);
+      line-height: 1.4;
     }
     .history-date { 
       color: var(--secondary); 
-      font-size: 0.75em;
+      font-size: 0.7em;
       text-transform: uppercase;
       letter-spacing: 0.05em;
+      opacity: 0.8;
     }
-    .history-details { display: none; padding: 16px; border-top: 1px solid var(--border); }
+    .history-details { display: none; padding: 12px; border-top: 1px solid var(--border); }
     .history-item.active { border-color: var(--primary); }
     .history-item.active .history-summary { display: none; }
     .history-item.active .history-details { display: block; }
+
+    .btn-ghost {
+      background: none;
+      border: none;
+      padding: 4px;
+      color: var(--secondary);
+      opacity: 0.5;
+      transition: opacity 0.2s, color 0.2s;
+    }
+    .btn-ghost:hover { opacity: 1; color: var(--fg); }
+    .btn-ghost-danger:hover { color: var(--danger); }
     
     .history-full-text {
       background: var(--bg);
@@ -271,8 +294,21 @@
 </head>
 <body>
 
+  <div id="welcome-banner" class="card" style="margin-bottom: 20px; border-left: 4px solid var(--primary); position: relative;">
+    <button id="close-welcome" style="position: absolute; right: 10px; top: 10px; background: none; border: none; cursor: pointer; color: var(--secondary); font-size: 1.2em;">×</button>
+    <div style="padding-right: 20px;">
+      <h4 style="margin: 0 0 8px 0;">Welcome!</h4>
+      <p style="margin: 0; font-size: 0.9em; color: var(--secondary);">Share voice notes from your chat apps to this page for private, local transcription. No data ever leaves your device.</p>
+    </div>
+  </div>
+
   <div id="info-banner">
-    <span>Local Transcribe • Completely Local</span>
+    <span style="display: flex; align-items: center; gap: 5px;">
+      Local Transcribe • Completely Local
+      <span id="info-icon" title="Show Welcome" style="display:none; cursor:pointer; opacity:0.6;">
+        <svg class="icon" style="width:16px; height:16px;" viewBox="0 0 24 24"><path d="M11,9H13V7H11M12,20C7.59,20 4,16.41 4,12C4,7.59 7.41,4 12,4C16.59,4 20,7.59 20,12C20,16.41 16.41,20 12,20M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z" /></svg>
+      </span>
+    </span>
     <button id="install-btn" class="btn btn-secondary btn-sm" style="display:none;">Install App</button>
   </div>
 
@@ -283,7 +319,7 @@
 
   <div id="main-interface">
     <div id="transcribe-tab" class="tab-content active">
-      <div id="audio-section" class="card">
+      <div id="audio-section" class="card action-card">
         <div id="audio-area">
           <svg class="icon" style="width:32px; height:32px; margin-bottom:10px; opacity:0.5;" viewBox="0 0 24 24"><path d="M14,2L20,8V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V4A2,2 0 0,1 6,2H14M18,20V9H13V4H6V20H18M12,19L15,16H13V12H11V16H9L12,19Z" /></svg>
           <br>Click, Drop, or Share Audio File
@@ -291,9 +327,9 @@
         <input type="file" id="file-upload" accept="audio/*" class="hidden">
         
         <div id="audio-info" class="hidden">
-          <div class="file-row">
+          <div class="file-row" style="position: relative; padding-right: 30px;">
             <span id="audio-filename"></span>
-            <span id="flush-btn-x" title="Unload file">×</span>
+            <span id="flush-btn-x" title="Unload file" style="position: absolute; right: 0; top: 0;">×</span>
           </div>
           <div class="controls">
             <button id="transcribe-btn" class="btn btn-primary">
@@ -308,14 +344,16 @@
         </div>
         <div id="status-text" style="font-size: 0.9em; margin-top: 10px; font-weight: 500;">Ready.</div>
         
-        <div class="status-bar">
-          <span><span class="label-meta">Duration:</span> <span id="stat-audio-len">--:--</span></span>
-          <span><span class="label-meta">Processing:</span> <span id="stat-transcribe-time">--s</span></span>
+        <div class="status-bar" style="border-top: none; padding-top: 0; margin-top: 15px;">
+          <div style="display: flex; gap: 15px; width: 100%; justify-content: flex-start; font-size: 0.85em; opacity: 0.8;">
+            <span><span class="label-meta">Duration:</span> <span id="stat-audio-len">--:--</span></span>
+            <span><span class="label-meta">Processing:</span> <span id="stat-transcribe-time">--s</span></span>
+          </div>
         </div>
       </div>
 
-      <div id="history-section" class="card">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+      <div id="history-section">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
           <h3 style="margin: 0; font-size: 1.1rem; font-weight: 800;">History</h3>
           <label style="font-size: 0.8em; color: var(--secondary); display: flex; align-items: center; gap: 8px; cursor: pointer;">
             <input type="checkbox" id="history-toggle" checked> Store History

@@ -41,6 +41,9 @@ const els = {
   historyList: document.getElementById('history-list'),
   modelsList: document.getElementById('models-list'),
   installBtn: document.getElementById('install-btn'),
+  welcomeBanner: document.getElementById('welcome-banner'),
+  closeWelcome: document.getElementById('close-welcome'),
+  infoIcon: document.getElementById('info-icon'),
 };
 
 window.addEventListener('beforeinstallprompt', (e) => {
@@ -59,6 +62,11 @@ async function init() {
   await initDB();
   await loadCachedAudio();
   await renderHistory();
+
+  if (localStorage.getItem('welcome_dismissed')) {
+    els.welcomeBanner.style.display = 'none';
+    els.infoIcon.style.display = 'inline';
+  }
 
   // Short delay to ensure SW is settled before checking cache
   setTimeout(checkSharedFile, 500);
@@ -105,6 +113,18 @@ function setupEventListeners() {
       els.installBtn.style.display = 'none';
     }
     deferredPrompt = null;
+  };
+
+  els.closeWelcome.onclick = () => {
+    els.welcomeBanner.style.display = 'none';
+    els.infoIcon.style.display = 'inline';
+    localStorage.setItem('welcome_dismissed', 'true');
+  };
+
+  els.infoIcon.onclick = () => {
+    els.welcomeBanner.style.display = 'block';
+    els.infoIcon.style.display = 'none';
+    localStorage.removeItem('welcome_dismissed');
   };
   
   els.historyToggle.onchange = (e) => {
@@ -176,15 +196,14 @@ async function renderHistory(expandId = null) {
     
     const dateObj = new Date(item.date);
     const dateStr = dateObj.toLocaleDateString() + ' ' + dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-    const isNew = index === 0 && (new Date() - dateObj < 60000); // New if < 1 min old
+    const isNew = index === 0 && (new Date() - dateObj < 60000);
 
     const summary = document.createElement('div');
     summary.className = 'history-summary';
     summary.innerHTML = `
       <div style="display:flex; justify-content:space-between; align-items:center;">
         <div class="history-date">${dateStr}</div>
-        ${isNew ? '<span class="badge-success" style="font-size:0.7em; background:var(--success); color:white; padding:2px 6px; border-radius:4px;">NEW</span>' : ''}
+        ${isNew ? '<span class="badge-success" style="font-size:0.65em; background:var(--success); color:white; padding:1px 5px; border-radius:3px;">NEW</span>' : ''}
       </div>
       <div class="history-text-preview">${item.text}</div>
     `;
@@ -195,35 +214,42 @@ async function renderHistory(expandId = null) {
     const headerDiv = document.createElement('div');
     headerDiv.style.display = 'flex';
     headerDiv.style.justifyContent = 'space-between';
-    headerDiv.style.fontSize = '0.75em';
-    headerDiv.style.marginBottom = '8px';
-    headerDiv.style.color = 'var(--secondary)';
-    headerDiv.style.fontWeight = 'bold';
-    headerDiv.innerHTML = `<span>${dateStr}</span><span style="cursor:pointer; color:var(--primary);" onclick="this.closest('.history-item').classList.remove('active')">COLLAPSE ↑</span>`;
+    headerDiv.style.alignItems = 'center';
+    headerDiv.style.marginBottom = '10px';
+    
+    const dateSpan = document.createElement('span');
+    dateSpan.className = 'history-date';
+    dateSpan.textContent = dateStr;
 
-    const fullTextDiv = document.createElement('div');
-    fullTextDiv.className = 'history-full-text';
-    fullTextDiv.textContent = item.text;
-    
-    const actionsDiv = document.createElement('div');
-    actionsDiv.className = 'controls';
-    
+    const topActions = document.createElement('div');
+    topActions.style.display = 'flex';
+    topActions.style.gap = '8px';
+    topActions.style.alignItems = 'center';
+
+    const collapseBtn = document.createElement('span');
+    collapseBtn.style.cursor = 'pointer';
+    collapseBtn.style.color = 'var(--primary)';
+    collapseBtn.style.fontSize = '0.75em';
+    collapseBtn.style.fontWeight = 'bold';
+    collapseBtn.textContent = 'COLLAPSE ↑';
+    collapseBtn.onclick = (e) => { e.stopPropagation(); div.classList.remove('active'); };
+
     const copyBtn = document.createElement('button');
-    copyBtn.className = 'btn btn-secondary btn-icon';
-    copyBtn.title = 'Copy to clipboard';
-    copyBtn.innerHTML = '<svg class="icon" viewBox="0 0 24 24"><path d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z" /></svg>';
+    copyBtn.className = 'btn-ghost';
+    copyBtn.title = 'Copy';
+    copyBtn.innerHTML = '<svg class="icon" style="width:16px; height:16px;" viewBox="0 0 24 24"><path d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z" /></svg>';
     copyBtn.onclick = (e) => {
       e.stopPropagation();
       navigator.clipboard.writeText(item.text);
       const original = copyBtn.innerHTML;
-      copyBtn.innerHTML = '<svg class="icon" viewBox="0 0 24 24"><path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z" /></svg>';
+      copyBtn.innerHTML = '<svg class="icon" style="width:16px; height:16px; color:var(--success);" viewBox="0 0 24 24"><path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z" /></svg>';
       setTimeout(() => copyBtn.innerHTML = original, 2000);
     };
     
     const deleteBtn = document.createElement('button');
-    deleteBtn.className = 'btn btn-danger btn-icon';
-    deleteBtn.title = 'Delete transcription';
-    deleteBtn.innerHTML = '<svg class="icon" viewBox="0 0 24 24"><path d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19V4M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z" /></svg>';
+    deleteBtn.className = 'btn-ghost btn-ghost-danger';
+    deleteBtn.title = 'Delete';
+    deleteBtn.innerHTML = '<svg class="icon" style="width:16px; height:16px;" viewBox="0 0 24 24"><path d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19V4M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z" /></svg>';
     deleteBtn.onclick = async (e) => {
       e.stopPropagation();
       if (!confirm('Delete this transcription?')) return;
@@ -231,12 +257,20 @@ async function renderHistory(expandId = null) {
       tx.objectStore('history').delete(item.id);
       tx.oncomplete = () => renderHistory();
     };
+
+    topActions.appendChild(collapseBtn);
+    topActions.appendChild(copyBtn);
+    topActions.appendChild(deleteBtn);
     
-    actionsDiv.appendChild(copyBtn);
-    actionsDiv.appendChild(deleteBtn);
+    headerDiv.appendChild(dateSpan);
+    headerDiv.appendChild(topActions);
+
+    const fullTextDiv = document.createElement('div');
+    fullTextDiv.className = 'history-full-text';
+    fullTextDiv.textContent = item.text;
+    
     details.appendChild(headerDiv);
     details.appendChild(fullTextDiv);
-    details.appendChild(actionsDiv);
     
     summary.onclick = () => div.classList.toggle('active');
     
@@ -329,7 +363,7 @@ async function updateModelsUI() {
       </div>
       <div class="controls" style="margin-top:0;">
         <button class="btn btn-secondary btn-sm" onclick="window.selectModel('${m.id}')" ${isSelected ? 'disabled' : ''}>${isSelected ? 'Selected' : 'Select'}</button>
-        ${isCached ? `<button class="btn btn-danger btn-sm" onclick="window.deleteModel('${m.id}')">Del</button>` : ''}
+        ${isCached ? `<button class="btn btn-danger btn-icon btn-sm" onclick="window.deleteModel('${m.id}')" title="Delete model files"><svg class="icon" style="width:14px; height:14px;" viewBox="0 0 24 24"><path d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19V4M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z" /></svg></button>` : ''}
       </div>
     `;
     els.modelsList.appendChild(div);
